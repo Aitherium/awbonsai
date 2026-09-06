@@ -1,0 +1,83 @@
+{
+  "name": "@aitherium/awbonsai",
+  "version": "0.1.0",
+  "description": "In-browser Bonsai inference as a library — one npm install, a real model on the visitor's own GPU, no account, no upload.",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./src/index.ts"
+    },
+    "./models": {
+      "types": "./src/models.ts",
+      "import": "./src/models.ts"
+    },
+    "./worker-core": {
+      "types": "./src/worker-core.ts",
+      "import": "./src/worker-core.ts"
+    },
+    "./is-supported": {
+      "types": "./src/is-supported.ts",
+      "import": "./src/is-supported.ts"
+    },
+    "./consent": {
+      "types": "./src/consent.ts",
+      "import": "./src/consent.ts"
+    }
+  },
+  "publishConfig": {
+    "main": "dist/index.js",
+    "types": "dist/index.d.ts",
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "import": "./dist/index.js"
+      },
+      "./models": {
+        "types": "./dist/models.d.ts",
+        "import": "./dist/models.js"
+      },
+      "./worker-core": {
+        "types": "./dist/worker-core.d.ts",
+        "import": "./dist/worker-core.js"
+      },
+      "./is-supported": {
+        "types": "./dist/is-supported.d.ts",
+        "import": "./dist/is-supported.js"
+      },
+      "./consent": {
+        "types": "./dist/consent.d.ts",
+        "import": "./dist/consent.js"
+      }
+    },
+    "registry": "https://npm.pkg.github.com",
+    "access": "restricted"
+  },
+  "files": [
+    "dist/",
+    "src/"
+  ],
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "npm run build && node --test",
+    "pack:dist": "npm run build && npm pack"
+  },
+  "keywords": [
+    "webgpu",
+    "webnn",
+    "in-browser",
+    "llm",
+    "bonsai",
+    "gguf",
+    "on-device"
+  ],
+  "license": "MIT",
+  "private": false,
+  "devDependencies": {
+    "@types/node": "^25.9.1",
+    "typescript": "^5.9.3"
+  }
+}
