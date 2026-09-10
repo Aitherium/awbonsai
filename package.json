@@ -74,7 +74,7 @@
     "gguf",
     "on-device"
   ],
-  "license": "MIT",
+  "license": "BUSL-1.1",
   "private": false,
   "devDependencies": {
     "@types/node": "^25.9.1",
