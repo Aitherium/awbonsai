@@ -47,6 +47,13 @@ export interface BonsaiModel {
    * the runtime derives each layer's kind from the tensor shapes it loaded.
    */
   arch: 'qwen3' | 'qwen35';
+  /**
+   * `false` when the in-browser runtime cannot run this file YET, whatever `arch`
+   * says. Bonsai 2 27B is genuinely `qwen35` but ships Walsh-Hadamard-rotated
+   * PTQ1_0 weights the kernels do not decode; a fake arch would lie to every other
+   * reader of that field, so this is its own gate. Omitted = runnable.
+   */
+  browser?: boolean;
 }
 
 const HF = 'https://huggingface.co/prism-ml';
@@ -124,17 +131,36 @@ export const BONSAI_MODELS: BonsaiModel[] = [
     blurb: 'The full brain. 3.6 GB and slow in a browser — for a real GPU, or self-host it with llama.cpp for the higher-quality ternary build.',
     arch: 'qwen35',
   },
+  {
+    // Bonsai 2 27B (PrismML, 2026-09-17). PTQ1_0 = 5,946,648,928 B from the real GGUF
+    // header (1.75 bpw, ggml type 143): the smallest build and the one the mirror
+    // serves (aitherkvcache `bonsai2-v1`, .part0-.part3). NOT browser-runnable yet:
+    // the weights carry prism.hadamard.* (block-1024 Walsh-Hadamard rotation) and only
+    // the PrismML llama.cpp fork (branch prism, prism-b10687-5d80cff+) serves them.
+    id: 'bonsai2-27b',
+    label: 'Bonsai 2 27B',
+    params: '27B',
+    sizeMb: 5671,
+    url: `${HF}/Ternary-Bonsai-2-27B-gguf/resolve/main/Ternary-Bonsai-2-27B-PTQ1_0.gguf`,
+    quant: 'PTQ1_0',
+    contextWindow: 262144,
+    blurb: 'The new generation. 5.7 GB, 1.75 bits per weight — not runnable in a browser yet; self-host it with the PrismML llama.cpp fork on a real GPU.',
+    arch: 'qwen35',
+    browser: false,
+  },
 ];
 
 /**
- * The sizes the IN-BROWSER runtime can actually load. ALL FOUR since 2026-07-28.
- * A filter over a PROPERTY rather than an id list, so a future Bonsai on a third
- * architecture stays out by default instead of silently inheriting "runnable".
+ * The sizes the IN-BROWSER runtime can actually load. ALL FOUR Bonsai 1 sizes since
+ * 2026-07-28. A filter over a PROPERTY rather than an id list, so a future Bonsai on
+ * a third architecture stays out by default instead of silently inheriting "runnable".
+ * The arch gate is necessary, not sufficient: Bonsai 2 27B is `qwen35` and still
+ * cannot run here, so a row may also opt out explicitly with `browser: false`.
  */
 const BROWSER_ARCHES: ReadonlyArray<BonsaiModel['arch']> = ['qwen3', 'qwen35'];
 
 export function browserRunnableModels(): BonsaiModel[] {
-  return BONSAI_MODELS.filter((m) => BROWSER_ARCHES.includes(m.arch));
+  return BONSAI_MODELS.filter((m) => BROWSER_ARCHES.includes(m.arch) && m.browser !== false);
 }
 
 /**
