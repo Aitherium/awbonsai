@@ -54,6 +54,13 @@ export interface BonsaiModel {
    * reader of that field, so this is its own gate. Omitted = runnable.
    */
   browser?: boolean;
+  /**
+   * Which runtime can SERVE this file on a real GPU. `browser` above
+   * answers a different question: Bonsai 2 is `browser: false` and
+   * perfectly servable -- just not by stock llama.cpp, which loads it
+   * and emits gibberish with a healthy /health. Omitted = stock.
+   */
+  serverRuntime?: 'llama.cpp' | 'llama.cpp-prism';
 }
 
 const HF = 'https://huggingface.co/prism-ml';
@@ -147,6 +154,7 @@ export const BONSAI_MODELS: BonsaiModel[] = [
     blurb: 'The new generation. 5.7 GB, 1.75 bits per weight — not runnable in a browser yet; self-host it with the PrismML llama.cpp fork on a real GPU.',
     arch: 'qwen35',
     browser: false,
+    serverRuntime: 'llama.cpp-prism',
   },
 ];
 
@@ -162,6 +170,25 @@ const BROWSER_ARCHES: ReadonlyArray<BonsaiModel['arch']> = ['qwen3', 'qwen35'];
 export function browserRunnableModels(): BonsaiModel[] {
   return BONSAI_MODELS.filter((m) => BROWSER_ARCHES.includes(m.arch) && m.browser !== false);
 }
+
+/**
+ * The models a SELF-HOSTER can serve on a real GPU -- which is every row here,
+ * including the ones the browser cannot load.
+ *
+ * browserRunnableModels() above answers the BROWSER's question. Until this
+ * existed it was the only selector in the file, so every self-host surface
+ * reading this catalogue silently inherited the browser's exclusions and
+ * Bonsai 2 vanished from paths where it runs perfectly well. One gate was
+ * answering two questions and the second answer was wrong.
+ *
+ * Pair with `serverRuntime`: offering Bonsai 2 without naming the PrismML fork
+ * sends someone to stock llama.cpp, which serves it as confident gibberish
+ * rather than failing. Asserted by check_bonsai_catalog_parity.py (BCP003).
+ */
+export function selfHostableModels(): BonsaiModel[] {
+  return BONSAI_MODELS.slice();
+}
+
 
 /**
  * The FAST in-browser default. 4B was the old default and on a GPU shared with a

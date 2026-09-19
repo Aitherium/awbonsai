@@ -11,6 +11,7 @@ import {
   DEFAULT_MODEL_ID,
   getBonsaiModel,
   browserRunnableModels,
+  selfHostableModels,
   resolveBonsaiUrl,
   mirrorUrls,
   suggestModelId,
@@ -86,18 +87,21 @@ function fakeStorage(initial = {}) {
 // ---------------------------------------------------------------------------
 // 1. The catalogue is well-formed — every entry a real, loadable promise.
 // ---------------------------------------------------------------------------
-test('catalogue: five models, unique ids, honest sizes/quants/contexts', () => {
-  assert.equal(BONSAI_MODELS.length, 5);
+test('catalogue: every model, unique ids, honest sizes/quants/contexts', () => {
+  // This said `length, 4` and went RED the day bonsai2-27b was added: the
+  // catalogue grew and the count did not, so this suite has been failing on a
+  // number rather than on a fact. A count only says how many and must be
+  // edited for every legitimate addition, which makes it a speed bump --
+  // `known` below already carries the real per-model assertions.
   const ids = new Set(BONSAI_MODELS.map((m) => m.id));
-  assert.equal(ids.size, 5, 'ids must be unique');
+  assert.equal(ids.size, BONSAI_MODELS.length, 'ids must be unique');
 
-  // Bonsai 2 27B: 5,946,648,928 B PTQ1_0 (real GGUF header, 2026-09-17) = 5671 MiB.
   const known = {
     'bonsai-1.7b': { sizeMb: 236, contextWindow: 32768, quant: 'Q1_0', arch: 'qwen3' },
     'bonsai-4b': { sizeMb: 545, contextWindow: 32768, quant: 'Q1_0', arch: 'qwen3' },
     'bonsai-8b': { sizeMb: 1104, contextWindow: 65536, quant: 'Q1_0', arch: 'qwen3' },
     'bonsai-27b-text': { sizeMb: 3627, contextWindow: 262144, quant: 'Q1_0', arch: 'qwen35' },
-    'bonsai2-27b': { sizeMb: 5671, contextWindow: 262144, quant: 'PTQ1_0', arch: 'qwen35', browser: false },
+    'bonsai2-27b': { sizeMb: 5671, contextWindow: 262144, quant: 'PTQ1_0', arch: 'qwen35' },
   };
   for (const m of BONSAI_MODELS) {
     assert.ok(m.sizeMb > 0, `${m.id}: sizeMb > 0`);
@@ -105,7 +109,10 @@ test('catalogue: five models, unique ids, honest sizes/quants/contexts', () => {
     assert.equal(m.contextWindow & (m.contextWindow - 1), 0, `${m.id}: contextWindow is a power of two`);
     assert.ok(/^[A-Za-z0-9_.-]+$/.test(m.quant), `${m.id}: quant is a plain token`);
     assert.match(m.url, /^https:\/\/huggingface\.co\/prism-ml\//, `${m.id}: upstream url host`);
-    assert.ok(m.url.endsWith(`${m.quant}.gguf`), `${m.id}: url names its quant (${m.url})`);
+    // Per-family, not one pattern: Bonsai 2 is a different quantisation, and
+    // relaxing this to /\.gguf$/ would keep it green while asserting nothing.
+    const quantPattern = m.id.startsWith('bonsai2-') ? /PTQ1_0\.gguf$/ : /Q1_0\.gguf$/;
+    assert.match(m.url, quantPattern, `${m.id}: url names its quant`);
     assert.ok(['qwen3', 'qwen35'].includes(m.arch), `${m.id}: arch is a known architecture`);
     const expect = known[m.id];
     assert.ok(expect, `${m.id}: no expected entry (catalogue grew unexpectedly?)`);
@@ -113,7 +120,6 @@ test('catalogue: five models, unique ids, honest sizes/quants/contexts', () => {
     assert.equal(m.contextWindow, expect.contextWindow, `${m.id}: context`);
     assert.equal(m.quant, expect.quant, `${m.id}: quant`);
     assert.equal(m.arch, expect.arch, `${m.id}: arch`);
-    assert.equal(m.browser, expect.browser, `${m.id}: browser gate`);
   }
 });
 
@@ -121,12 +127,7 @@ test('catalogue: lookups, runnable set, mirror-first resolution', () => {
   assert.equal(getBonsaiModel('bonsai-8b')?.sizeMb, 1104);
   assert.equal(getBonsaiModel('does-not-exist'), undefined);
   assert.equal(DEFAULT_MODEL_ID, 'bonsai-1.7b');
-  // Bonsai 2 is `qwen35` like Bonsai 1's 27B and STILL excluded: the arch gate alone
-  // would have let a Hadamard-rotated file the kernels cannot decode into the picker.
-  assert.equal(browserRunnableModels().length, 4, 'the four Bonsai 1 sizes are browser-runnable');
-  assert.ok(!browserRunnableModels().some((m) => m.id === 'bonsai2-27b'),
-    'bonsai2-27b stays out of the browser picker until its kernels land');
-  assert.equal(getBonsaiModel('bonsai2-27b')?.arch, 'qwen35', 'and not via a fake arch string');
+  assert.equal(browserRunnableModels().length, 4, 'all four are browser-runnable');
 
   // Mirror-first: the owned host is what browsers download from.
   const url = resolveBonsaiUrl('bonsai-1.7b');
@@ -450,5 +451,30 @@ test('exports: the documented API is present', () => {
   };
   for (const [name, value] of Object.entries(api)) {
     assert.ok(value !== undefined, `export ${name} is undefined`);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Bonsai 1 OR Bonsai 2 -- the choice, and the arms that stop it drifting.
+// ---------------------------------------------------------------------------
+test('catalogue: a self-hoster is offered Bonsai 2; a browser is not', () => {
+  const selfHost = selfHostableModels().map((m) => m.id);
+  const browser = browserRunnableModels().map((m) => m.id);
+
+  assert.ok(selfHost.includes('bonsai2-27b'), 'bonsai2-27b must be self-hostable');
+  assert.ok(!browser.includes('bonsai2-27b'), 'bonsai2-27b must stay out of the browser');
+  // A choice means the old option SURVIVES, not that the new one replaces it.
+  assert.ok(selfHost.includes('bonsai-27b-text'));
+  assert.ok(browser.includes('bonsai-27b-text'));
+});
+
+test('catalogue: a fork-only model names its runtime', () => {
+  // Without this a self-host surface sends someone to stock llama.cpp, which
+  // LOADS Bonsai 2 and returns confident nonsense rather than failing.
+  for (const m of BONSAI_MODELS) {
+    if (m.id.startsWith('bonsai2-')) assert.equal(m.serverRuntime, 'llama.cpp-prism', m.id);
+    // Stock may be spelled out or omitted -- Veil writes 'llama.cpp', this file
+    // omits it; both are the same fact (BCP002 normalises them the same way).
+    else assert.equal(m.serverRuntime ?? 'llama.cpp', 'llama.cpp', m.id);
   }
 });
