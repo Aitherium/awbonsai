@@ -127,7 +127,7 @@ test('catalogue: lookups, runnable set, mirror-first resolution', () => {
   assert.equal(getBonsaiModel('bonsai-8b')?.sizeMb, 1104);
   assert.equal(getBonsaiModel('does-not-exist'), undefined);
   assert.equal(DEFAULT_MODEL_ID, 'bonsai-1.7b');
-  assert.equal(browserRunnableModels().length, 4, 'all four are browser-runnable');
+  assert.equal(browserRunnableModels().length, 5, 'four Bonsai 1 sizes + Bonsai 2 27B are browser-runnable');
 
   // Mirror-first: the owned host is what browsers download from.
   const url = resolveBonsaiUrl('bonsai-1.7b');
@@ -457,12 +457,12 @@ test('exports: the documented API is present', () => {
 // ---------------------------------------------------------------------------
 // Bonsai 1 OR Bonsai 2 -- the choice, and the arms that stop it drifting.
 // ---------------------------------------------------------------------------
-test('catalogue: a self-hoster is offered Bonsai 2; a browser is not', () => {
+test('catalogue: Bonsai 2 is offered to a self-hoster and, since 2026-10-01, in the browser', () => {
   const selfHost = selfHostableModels().map((m) => m.id);
   const browser = browserRunnableModels().map((m) => m.id);
 
   assert.ok(selfHost.includes('bonsai2-27b'), 'bonsai2-27b must be self-hostable');
-  assert.ok(!browser.includes('bonsai2-27b'), 'bonsai2-27b must stay out of the browser');
+  assert.ok(browser.includes('bonsai2-27b'), 'bonsai2-27b passed the fork-golden gate and is browser-runnable');
   // A choice means the old option SURVIVES, not that the new one replaces it.
   assert.ok(selfHost.includes('bonsai-27b-text'));
   assert.ok(browser.includes('bonsai-27b-text'));
