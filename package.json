@@ -1,6 +1,6 @@
 {
   "name": "@aitherium/awbonsai",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "In-browser Bonsai inference as a library — one npm install, a real model on the visitor's own GPU, no account, no upload.",
   "type": "module",
   "main": "dist/index.js",

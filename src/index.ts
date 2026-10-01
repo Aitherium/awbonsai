@@ -33,6 +33,7 @@ import {
   ConsentRequiredError,
   ModelNotFoundError,
   SurfaceRefusedError,
+  WorkerIntegrityError,
 } from './errors.js';
 import {
   BONSAI_MODELS,
@@ -44,6 +45,7 @@ import {
 import { currentSurfaceRefusal, readBonsaiConsent, setConsentSettings, type ConsentStorage } from './consent.js';
 import {
   createWorkerBridge,
+  getWorkerScriptUrl,
   setWorkerScriptUrl,
   spawnWorker,
   type GenerateResult,
@@ -57,8 +59,17 @@ export interface AwbonsaiConfig {
    * the mirror and sends browsers to the upstream host.
    */
   mirrorBase?: string | null;
-  /** Where the engine WORKER SCRIPT is fetched from at runtime. Default: the mirror. */
+  /**
+   * Where the engine WORKER SCRIPT is fetched from at runtime. Default: the
+   * release-pinned engine on the mirror. It is fetched (CORS) and started from a
+   * Blob URL, so it may live on any origin; the page CSP must allow `worker-src blob:`.
+   */
   workerScriptUrl?: string;
+  /**
+   * sha256 hex the engine script must hash to, or null for no check. Default:
+   * this release's pin when `workerScriptUrl` is the default, none otherwise.
+   */
+  workerScriptSha256?: string | null;
   /** localStorage key holding the visitor's consent record. */
   consentKey?: string;
   /** Hosts allowed to run a model. A stranger's site is refused until it is listed here. */
@@ -77,7 +88,9 @@ export interface AwbonsaiConfig {
 /** Configure the brick. Any subset; the rest keeps its previous value. */
 export function configureAwbonsai(cfg: AwbonsaiConfig): void {
   if (cfg.mirrorBase !== undefined) setMirrorBase(cfg.mirrorBase);
-  if (cfg.workerScriptUrl !== undefined) setWorkerScriptUrl(cfg.workerScriptUrl);
+  if (cfg.workerScriptUrl !== undefined || cfg.workerScriptSha256 !== undefined) {
+    setWorkerScriptUrl(cfg.workerScriptUrl ?? getWorkerScriptUrl(), cfg.workerScriptSha256);
+  }
   setConsentSettings({
     consentKey: cfg.consentKey,
     allowedHosts: cfg.allowedHosts,
@@ -96,6 +109,8 @@ export interface LoadModelOptions {
   consent?: boolean;
   /** Engine script URL for this load (overrides the configured default). */
   workerScriptUrl?: string;
+  /** sha256 the per-load engine must hash to (null = no check). See AwbonsaiConfig. */
+  workerScriptSha256?: string | null;
   onProgress?: (p: { progress?: number; file?: string }) => void;
 }
 
@@ -171,14 +186,19 @@ export async function loadModel(
 
   let worker: WorkerLike | null = null;
   try {
-    worker = spawnWorker(opts.workerScriptUrl);
+    worker = await spawnWorker(
+      opts.workerScriptUrl,
+      opts.workerScriptSha256 !== undefined ? { sha256: opts.workerScriptSha256 } : {},
+    );
   } catch (e) {
+    // A hash mismatch is its own named failure, never "no browser".
+    if (e instanceof WorkerIntegrityError) throw e;
     throw new BrowserRequiredError(`could not spawn the engine worker: ${String(e)}`);
   }
 
   const bridge = createWorkerBridge(worker);
   try {
-    await bridge.load(modelId);
+    await bridge.load(modelId, opts.onProgress);
   } catch (e) {
     worker.terminate?.();
     throw e;
@@ -219,6 +239,7 @@ export interface GeneratePromptOptions extends SessionGenerateOptions {
   consent?: boolean;
   /** Engine script URL for this call (overrides the configured default). */
   workerScriptUrl?: string;
+  workerScriptSha256?: string | null;
   onProgress?: (p: { progress?: number; file?: string }) => void;
 }
 
@@ -230,6 +251,7 @@ export async function generate(prompt: string, opts: GeneratePromptOptions = {})
   const session = await loadModel(opts.modelId ?? DEFAULT_MODEL_ID, {
     consent: opts.consent,
     workerScriptUrl: opts.workerScriptUrl,
+    workerScriptSha256: opts.workerScriptSha256,
     onProgress: opts.onProgress,
   });
   try {

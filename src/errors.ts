@@ -51,6 +51,26 @@ export class DeviceLostError extends Error {
   }
 }
 
+/**
+ * The engine script's bytes did not hash to the pinned sha256. It is never
+ * started: a changed file under a pinned name is either a new engine this
+ * release was not built against, or a tampered one.
+ */
+export class WorkerIntegrityError extends Error {
+  constructor(
+    readonly url: string,
+    readonly expected: string,
+    readonly actual: string,
+  ) {
+    super(
+      `awbonsai: refusing to start the engine from ${url} — its sha256 is ${actual}, ` +
+        `this awbonsai release pins ${expected}. Upgrade awbonsai, or self-host the ` +
+        `engine and pass its sha256 (configureAwbonsai({ workerScriptUrl, workerScriptSha256 })).`,
+    );
+    this.name = 'WorkerIntegrityError';
+  }
+}
+
 /** The generation was interrupted, either by the caller (AbortSignal) or by `interrupt()`. */
 export class GenerationAbortedError extends Error {
   constructor(message: string) {

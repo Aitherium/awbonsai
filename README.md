@@ -89,18 +89,29 @@ nothing is how "it just doesn't even try" ships.
 
 This package is the **API contract + catalogue + loader**. It does not vendor
 llama.cpp, the WGSL kernels, the tokenizer or the GGUF decoder. At runtime the
-loader spawns a **worker script fetched from the weight mirror**
-(`https://weights.aitherium.com/bonsai-worker.js` by default), which speaks the
+loader fetches the **engine worker script from the weight mirror**
+(`https://weights.aitherium.com/awbonsai-engine-<sha12>.js` — content-addressed,
+pinned per awbonsai release by `DEFAULT_WORKER_SCRIPT_SHA256`), which speaks the
 wire protocol this package types (`load | generate | interrupt` →
 `progress | ready | token | tool_action | image | done | error`). The worker
 fetches the model's GGUF (236 MB–3.6 GB, Range + CORS, mirror-first) and runs it
 on the tab's GPU.
+
+The engine is on another origin than your page, and `new Worker(url)` is
+same-origin only, so the loader **fetches the script (CORS), checks its sha256,
+and starts it from a Blob URL**. A hash mismatch is refused with
+`WorkerIntegrityError` and nothing runs. Relative URLs the engine resolves
+(`fetch`, `importScripts`, XHR, sub-`Worker`) resolve against the script's real
+location, not `blob:`. Classic and module scripts are both handled (auto-detected).
+If your page sets a CSP, it must allow `worker-src blob:` and `connect-src
+https://weights.aitherium.com`.
 
 Override points:
 
 ```ts
 configureAwbonsai({
   workerScriptUrl: '/my-own-bundled-engine.js', // self-host the engine
+  workerScriptSha256: '<64 hex>',                // pin it (omit = unpinned)
   mirrorBase: 'none',                            // genuinely disable the mirror
 })
 ```
@@ -136,13 +147,13 @@ vendored here as code, not prose:
 |---|---|
 | `loadModel`, `generate`, `configureAwbonsai`, `BonsaiSession` | `@aitherium/awbonsai` |
 | `BONSAI_MODELS`, `getBonsaiModel`, `resolveBonsaiUrl`, `mirrorUrls`, `suggestModelId`, `pickContext`, `gpuSizeCeilingMb`, `describeAdapter`, `setMirrorBase` | `@aitherium/awbonsai/models` |
-| `createWorkerBridge`, `spawnWorker`, `setWorkerScriptUrl`, `WorkerRequest`, `WorkerResponse`, `ChatMessage` | `@aitherium/awbonsai/worker-core` |
+| `createWorkerBridge`, `spawnWorker` (async), `setWorkerScriptUrl`, `DEFAULT_WORKER_SCRIPT_URL`, `DEFAULT_WORKER_SCRIPT_SHA256`, `prepareWorkerSource`, `WorkerRequest`, `WorkerResponse`, `ChatMessage` | `@aitherium/awbonsai/worker-core` |
 | `isSupported`, `assessSupport`, `classifyAdapter`, `isMobileDevice`, `autoBootAllowed`, `gpuLaneAllowed` | `@aitherium/awbonsai/is-supported` |
 | `grantBonsaiConsent`, `revokeBonsaiConsent`, `readBonsaiConsent`, `bonsaiMayAutoLoad`, `bonsaiSurfaceRefusal` | `@aitherium/awbonsai/consent` |
 
 Errors are named classes: `ConsentRequiredError`, `SurfaceRefusedError`,
 `BrowserRequiredError`, `ModelNotFoundError`, `DeviceLostError`,
-`GenerationAbortedError`.
+`GenerationAbortedError`, `WorkerIntegrityError`.
 
 ## Browser support
 
