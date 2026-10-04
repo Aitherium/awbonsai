@@ -60,6 +60,7 @@ export const DEFAULT_ALLOWED_HOSTS: readonly string[] = [
   'www.aitherium.com',
   'desktop.aitherium.com',
   'spaces.aitherium.com',
+  'app.aitherium.com',
   'localhost',
   '127.0.0.1',
   'elodineofficial.github.io',
