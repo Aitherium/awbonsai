@@ -99,9 +99,11 @@ test('catalogue: every model, unique ids, honest sizes/quants/contexts', () => {
   const known = {
     'bonsai-1.7b': { sizeMb: 236, contextWindow: 32768, quant: 'Q1_0', arch: 'qwen3' },
     'bonsai-4b': { sizeMb: 545, contextWindow: 32768, quant: 'Q1_0', arch: 'qwen3' },
-    'bonsai-8b': { sizeMb: 1104, contextWindow: 65536, quant: 'Q1_0', arch: 'qwen3' },
     'bonsai-27b-text': { sizeMb: 3627, contextWindow: 262144, quant: 'Q1_0', arch: 'qwen35' },
     'bonsai2-27b': { sizeMb: 5671, contextWindow: 262144, quant: 'PTQ1_0', arch: 'qwen35' },
+    'bonsai2-2b': { sizeMb: 409, contextWindow: 262144, quant: 'PTQ1_0', arch: 'qwen35' },
+    'bonsai2-4b': { sizeMb: 906, contextWindow: 262144, quant: 'PTQ1_0', arch: 'qwen35' },
+    'bonsai2-9b': { sizeMb: 1905, contextWindow: 262144, quant: 'PTQ1_0', arch: 'qwen35' },
   };
   for (const m of BONSAI_MODELS) {
     assert.ok(m.sizeMb > 0, `${m.id}: sizeMb > 0`);
@@ -124,10 +126,14 @@ test('catalogue: every model, unique ids, honest sizes/quants/contexts', () => {
 });
 
 test('catalogue: lookups, runnable set, mirror-first resolution', () => {
-  assert.equal(getBonsaiModel('bonsai-8b')?.sizeMb, 1104);
+  assert.equal(getBonsaiModel('bonsai-4b')?.sizeMb, 545);
+  // Benches below the 4B (0.43 vs 0.53): never offered, so not catalogued.
+  assert.equal(getBonsaiModel('bonsai-8b'), undefined);
   assert.equal(getBonsaiModel('does-not-exist'), undefined);
   assert.equal(DEFAULT_MODEL_ID, 'bonsai-1.7b');
-  assert.equal(browserRunnableModels().length, 5, 'four Bonsai 1 sizes + Bonsai 2 27B are browser-runnable');
+  assert.deepEqual(browserRunnableModels().map((m) => m.id),
+    ['bonsai-1.7b', 'bonsai-4b', 'bonsai-27b-text', 'bonsai2-27b'],
+    'Bonsai 1 1.7B/4B/27B + Bonsai 2 27B; Bonsai 2 2B/4B/9B wait on the engine pin');
 
   // Mirror-first: the owned host is what browsers download from.
   const url = resolveBonsaiUrl('bonsai-1.7b');
@@ -368,12 +374,12 @@ test('bridge: error rejects; device-lost latches and poisons later calls', async
   const worker = makeFakeWorker({ autoReady: false });
   const bridge = createWorkerBridge(worker);
 
-  const load = bridge.load('bonsai-8b');
+  const load = bridge.load('bonsai-4b');
   worker.emit({ type: 'error', message: 'boom', fatal: 'device-lost' });
   await assert.rejects(load, DeviceLostError);
   assert.ok(bridge.deviceLost, 'the latch is set');
 
-  await assert.rejects(bridge.load('bonsai-8b'), DeviceLostError);
+  await assert.rejects(bridge.load('bonsai-4b'), DeviceLostError);
   await assert.rejects(bridge.generate([{ role: 'user', content: 'x' }]), DeviceLostError);
 });
 

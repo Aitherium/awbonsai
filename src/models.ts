@@ -5,7 +5,7 @@
  * `AitherVeil/src/lib/bonsai-models.ts`). Sizes are the REAL blob sizes from the
  * HuggingFace API (measured 2026-07-26), not estimates:
  *
- *      1.7B  236 MB      4B  545 MB      8B  1104 MB      27B  3627 MB
+ *      1.7B  236 MB      4B  545 MB      27B  3627 MB   (8B omitted: benches below the 4B)
  *
  * WHY FOUR SIZES. The lane once hardcoded ONE url — Bonsai-27B-Q1_0, 3627 MB — and
  * handed it to every visitor regardless of device. A phone got the 27B: a
@@ -117,17 +117,9 @@ export const BONSAI_MODELS: BonsaiModel[] = [
     blurb: 'The balanced pick: noticeably smarter than 1.7B, still a quick download, still runs in the browser.',
     arch: 'qwen3',
   },
-  {
-    id: 'bonsai-8b',
-    label: 'Bonsai 8B',
-    params: '8B',
-    sizeMb: 1104,
-    url: `${HF}/Bonsai-8B-gguf/resolve/main/Bonsai-8B-Q1_0.gguf`,
-    quant: 'Q1_0',
-    contextWindow: 65536,
-    blurb: 'Better reasoning, ~1 GB. Comfortable on a desktop with a real GPU; a big ask on a phone.',
-    arch: 'qwen3',
-  },
+  // bonsai-8b is DELIBERATELY ABSENT (2026-11-10): AitherBench scores it 0.43 against the
+  // 4B's 0.53 at twice the download, so offering it as "better reasoning" was false.
+  // check_bonsai_catalog_parity.py BCP004 fails if it returns to any browser list.
   {
     id: 'bonsai-27b-text',
     label: 'Bonsai 27B',
@@ -158,11 +150,60 @@ export const BONSAI_MODELS: BonsaiModel[] = [
     browser: true,
     serverRuntime: 'llama.cpp-prism',
   },
+  {
+    // Ternary Bonsai 2 2B. prism.hadamard.version 2, block 512. The runtime supports the
+    // contract (Veil #15979) but no fork golden exists and the browser gate has not run on
+    // this file: `browser: false` until selftest/e2e/bonsai2-browser-gate.mjs passes.
+    id: 'bonsai2-2b',
+    label: 'Bonsai 2 2B',
+    params: '2B',
+    sizeMb: 409,
+    url: `${HF}/Ternary-Bonsai-2-2B-gguf/resolve/main/Ternary-Bonsai-2-2B-PTQ1_0.gguf`,
+    quant: 'PTQ1_0',
+    contextWindow: 262144,
+    blurb: 'The smallest of the new generation, 409 MB. Self-host it with the PrismML llama.cpp fork; not offered in the browser until its gate has run.',
+    arch: 'qwen35',
+    browser: false,
+    serverRuntime: 'llama.cpp-prism',
+  },
+  {
+    // Ternary Bonsai 2 4B. prism.hadamard.version 2 (tied latent head), block 512.
+    // Veil's runtime runs it since 2026-11-10 (#15979: 144/144 teacher-forced tokens agree
+    // with the PrismML fork). NOT THIS PACKAGE'S ENGINE: DEFAULT_WORKER_SCRIPT_SHA256 pins the
+    // 2026-10-01 build, which has no version-2 Hadamard and no `bonsai2-4b` id, so a load
+    // here would fall back to another model. `browser: false` until a new engine is pinned.
+    id: 'bonsai2-4b',
+    label: 'Bonsai 2 4B',
+    params: '4B',
+    sizeMb: 906,
+    url: `${HF}/Ternary-Bonsai-2-4B-gguf/resolve/main/Ternary-Bonsai-2-4B-PTQ1_0.gguf`,
+    quant: 'PTQ1_0',
+    contextWindow: 262144,
+    blurb: 'The new generation at a browser-friendly size. 906 MB, 1.75 bits per weight — self-host it with the PrismML llama.cpp fork; the pinned browser engine predates its rotation.',
+    arch: 'qwen35',
+    browser: false,
+    serverRuntime: 'llama.cpp-prism',
+  },
+  {
+    // Ternary Bonsai 2 9B. prism.hadamard.version 1, block 4096: the WebGPU runtime has
+    // fwht kernels for 512 and 1024 only, so the file is refused at load.
+    id: 'bonsai2-9b',
+    label: 'Bonsai 2 9B',
+    params: '9B',
+    sizeMb: 1905,
+    url: `${HF}/Ternary-Bonsai-2-9B-gguf/resolve/main/Ternary-Bonsai-2-9B-PTQ1_0.gguf`,
+    quant: 'PTQ1_0',
+    contextWindow: 262144,
+    blurb: 'The mid-size new generation, 1.9 GB. Self-host it with the PrismML llama.cpp fork; the browser runtime does not support its 4096-wide rotation yet.',
+    arch: 'qwen35',
+    browser: false,
+    serverRuntime: 'llama.cpp-prism',
+  },
 ];
 
 /**
- * The sizes the IN-BROWSER runtime can actually load: the four Bonsai 1 sizes, and
- * Bonsai 2 27B since 2026-10-01. A filter over a PROPERTY rather than an id list, so a
+ * The sizes the IN-BROWSER runtime can actually load: Bonsai 1 1.7B/4B/27B, Bonsai 2
+ * 27B since 2026-10-01 (Bonsai 2 4B waits on a new pinned engine). A filter over a PROPERTY rather than an id list, so a
  * future Bonsai on a third architecture stays out by default instead of silently
  * inheriting "runnable". The arch gate is necessary, not sufficient: a row may also opt
  * out explicitly with `browser: false`.
@@ -195,7 +236,7 @@ export function selfHostableModels(): BonsaiModel[] {
 /**
  * The FAST in-browser default. 4B was the old default and on a GPU shared with a
  * fleet it decodes ~10-15 tok/s; 1.7B loads in half the time and decodes ~2.3x
- * faster. Errs small on purpose: the picker upgrades to 4B/8B/27B on demand.
+ * faster. Errs small on purpose: the picker upgrades to 4B/27B on demand.
  */
 export const DEFAULT_MODEL_ID = 'bonsai-1.7b';
 

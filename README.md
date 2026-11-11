@@ -46,8 +46,11 @@ const reply = await model.generate('why is the sky blue?', {
 |---|---|---|---|---|
 | `bonsai-1.7b` | 1.7B | 236 MB | 32k | qwen3 |
 | `bonsai-4b` | 4B | 545 MB | 32k | qwen3 |
-| `bonsai-8b` | 8B | 1104 MB | 64k | qwen3 |
 | `bonsai-27b-text` | 27B | 3627 MB | 262k | qwen35 |
+| `bonsai2-27b` | 27B | 5671 MB | 262k | qwen35 (PTQ1_0) |
+| `bonsai2-2b` / `bonsai2-4b` / `bonsai2-9b` | 2B / 4B / 9B | 409 / 906 / 1905 MB | 262k | self-host only (`browser: false`; the pinned engine predates their rotation) |
+
+Bonsai 8B is not catalogued: AitherBench scores it 0.43, below the 4B's 0.53.
 
 Sizes are the real blob sizes from the HuggingFace API (measured 2026-07-26).
 `pickContext(model)` picks a RAM-tiered KV budget that never exceeds the model's
